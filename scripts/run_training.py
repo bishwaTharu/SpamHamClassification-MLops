@@ -3,6 +3,7 @@ import subprocess
 from src.pipelines.training_pipeline import TrainingPipeline
 from src.utils.mlflow_manager import MLflowManager
 from src.utils.logger import get_logger
+import sys
 
 logger = get_logger(__name__)
 
@@ -29,5 +30,7 @@ def main(data_path: str):
         print(output_path) # For external capture
 
 if __name__ == "__main__":
-    import sys
+    if len(sys.argv) < 2:
+        print("Usage: python scripts/run_training.py <s3_data_path>")
+        sys.exit(1)
     main(sys.argv[1])

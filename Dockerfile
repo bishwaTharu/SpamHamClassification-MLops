@@ -11,5 +11,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ src/
 COPY scripts/ scripts/
 
+# Default port for the Prediction API
+EXPOSE 5000
+
+# Entrypoint to run any script
 ENTRYPOINT ["python"]
-CMD ["scripts/run_training.py"]
+
+# Default command (can be overridden to run src/api/app.py)
+CMD ["src/api/app.py"]

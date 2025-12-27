@@ -62,6 +62,58 @@ curl -X POST http://localhost:5000/predict \
      -d '{"text": "Urgent! You have won a 1-week holiday to Hawaii. Call 0800-spam now!"}'
 ```
 
+## ☁️ SageMaker Deployment
+
+### 1. Configuration
+Ensure your `.env` file has the following settings:
+```env
+SAGEMAKER_ROLE_ARN=arn:aws:iam::your-account:role/service-role/AmazonSageMaker-ExecutionRole
+REGION_NAME=ap-southeast-2
+INSTANCE_TYPE=ml.m5.large  # Smallest reliable general-purpose instance
+ENDPOINT_NAME=spam-ham-classifier-endpoint
+MLFLOW_TRACKING_URI=sqlite:///mlflow.db
+```
+
+### 2. Prepare the Model
+Ensure your model is in the `Staging` stage of the MLflow Model Registry.
+```bash
+# Verify the registry status
+python scripts/check_registry.py
+
+# If version 1 is not in Staging, promote it:
+python -c "from mlflow.tracking import MlflowClient; from src.config.settings import Settings; client = MlflowClient(); client.transition_model_version_stage(name=Settings.MODEL_NAME, version=1, stage='Staging')"
+```
+
+### 3. Build & Push Container
+MLflow requires a Docker container in ECR for SageMaker deployment.
+```bash
+mlflow sagemaker build-and-push-container
+```
+
+### 4. Deploy & Test
+```bash
+# Run the deployment script
+python scripts/deploy_to_sagemaker.py
+
+# Test the remote endpoint (uses MLflow 2.0+ scoring protocol)
+python scripts/test_sagemaker_endpoint.py
+```
+
+## 🛠️ Troubleshooting
+
+- **Connection Errors**: Ensure the MLflow server is running (`mlflow ui --port 5000`) if using a networked URI.
+- **Model Registry Issues**: Use `python scripts/check_registry.py` to diagnose missing versions or stages.
+- **Scoring Protocol (400 Bad Request)**: MLflow 2.0+ requires inputs in a specific JSON format (e.g., `dataframe_records`). Ensure your client uses the structure: `{"dataframe_records": [{"text": "your message"}]}`.
+- **Dependency Issues**: If you see `Not supported URL scheme http+docker`, ensure you have `requests<2.32` installed.
+
+## 🧹 Cleanup
+
+To avoid ongoing AWS costs when you are done testing, you must delete the SageMaker endpoint:
+```bash
+python scripts/delete_sagemaker_endpoint.py
+```
+This script will stop the instance and remove the endpoint from your AWS account.
+
 ## 🐳 Docker Support
 
 Build and run the entire pipeline or API inside Docker.
@@ -81,6 +133,10 @@ docker run -e AWS_ACCESS_KEY_ID=xxx -e AWS_SECRET_ACCESS_KEY=xxx spam-ham-mlops 
 
 ## 📁 Project Structure
 - `scripts/`: Entry point scripts for pipeline stages.
+  - `run_etl.py`, `run_training.py`, `run_evaluation.py` (Core pipeline)
+  - `deploy_to_sagemaker.py`, `test_sagemaker_endpoint.py` (SageMaker deployment)
+  - `check_registry.py` (Model registry diagnostic)
+  - `delete_sagemaker_endpoint.py` (Cleanup/Stop instance)
 - `src/api/`: Flask prediction server.
 - `src/pipelines/`: Logic for ETL, Training, and Evaluation.
 - `src/monitoring/`: Data drift detection tools.
